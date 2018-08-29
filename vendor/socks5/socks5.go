@@ -38,7 +38,7 @@ type Config struct {
 	Logger *log.Logger
 
 	// Optional function for dialing out
-	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	Dial func(addr string) (net.Conn, error)
 }
 
 // Server is reponsible for accepting connections and handling

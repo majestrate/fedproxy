@@ -24,15 +24,15 @@ func main() {
 		return		
 	}
 	serv, err := socks5.New(&socks5.Config{
-		Dial: func(_ context.Context, network, addr string) (net.Conn, error) {
+		Dial: func(addr string) (net.Conn, error) {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
 			}
 			if strings.HasSuffix(host, ".onion") {
-				return upstream.Dial(network, addr)
+				return upstream.Dial("tcp", addr)
 			}
-			return net.Dial(network, addr)
+			return net.Dial("tcp", addr)
 		},
 	})
 

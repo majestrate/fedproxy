@@ -71,8 +71,12 @@ type Request struct {
 	// AddrSpec of the the network that sent the request
 	RemoteAddr *AddrSpec
 	// AddrSpec of the desired destination
-	DestAddr *AddrSpec
+	DestAddr AddrSpec
 	bufConn      io.Reader
+}
+
+func (req *Request) ConnectAddress() string {
+	return req.DestAddr.Address()
 }
 
 type conn interface {
