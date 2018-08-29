@@ -1,11 +1,11 @@
 package main
 
 import (
-	"socks5"
+	"fmt"
 	"golang.org/x/net/proxy"
 	"net"
 	"os"
-	"fmt"
+	"socks5"
 	"strings"
 )
 
@@ -21,7 +21,7 @@ func main() {
 	onion, err = proxy.SOCKS5("tcp", os.Args[2], nil, nil)
 	if err != nil {
 		fmt.Printf("failed to create onion proxy to %s, %s\n", os.Args[2], err.Error())
-		return		
+		return
 	}
 	if len(args) > 3 {
 		i2p, err = proxy.SOCKS5("tcp", os.Args[3], nil, nil)
@@ -50,11 +50,10 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Printf("failed to create socks proxy %s\n",  err.Error())
-		return		
+		fmt.Printf("failed to create socks proxy %s\n", err.Error())
+		return
 	}
-	
-	
+
 	l, err := net.Listen("tcp", os.Args[1])
 	if err != nil {
 		fmt.Printf("failed to listen on %s, %s\n", os.Args[1], err.Error())
