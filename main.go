@@ -18,15 +18,15 @@ func main() {
 	}
 	var onion, i2p proxy.Dialer
 	var err error
-	onion, err = proxy.SOCKS5("tcp", os.Args[2], nil, nil)
+	onion, err = proxy.SOCKS5("tcp", args[1], nil, nil)
 	if err != nil {
-		fmt.Printf("failed to create onion proxy to %s, %s\n", os.Args[2], err.Error())
+		fmt.Printf("failed to create onion proxy to %s, %s\n", args[1], err.Error())
 		return
 	}
 	if len(args) > 2 {
-		i2p, err = proxy.SOCKS5("tcp", os.Args[3], nil, nil)
+		i2p, err = proxy.SOCKS5("tcp", args[2], nil, nil)
 		if err != nil {
-			fmt.Printf("failed to create i2p proxy to %s, %s\n", os.Args[3], err.Error())
+			fmt.Printf("failed to create i2p proxy to %s, %s\n", args[2], err.Error())
 			return
 		}
 	}
@@ -54,11 +54,11 @@ func main() {
 		return
 	}
 
-	l, err := net.Listen("tcp", os.Args[1])
+	l, err := net.Listen("tcp", args[0])
 	if err != nil {
-		fmt.Printf("failed to listen on %s, %s\n", os.Args[1], err.Error())
+		fmt.Printf("failed to listen on %s, %s\n", args[0], err.Error())
 		return
 	}
-	fmt.Printf("proxy serving on %s\n", os.Args[1])
+	fmt.Printf("proxy serving on %s\n", args[0])
 	serv.Serve(l)
 }
