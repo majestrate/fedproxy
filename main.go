@@ -23,7 +23,7 @@ func main() {
 		fmt.Printf("failed to create onion proxy to %s, %s\n", os.Args[2], err.Error())
 		return
 	}
-	if len(args) > 3 {
+	if len(args) > 2 {
 		i2p, err = proxy.SOCKS5("tcp", os.Args[3], nil, nil)
 		if err != nil {
 			fmt.Printf("failed to create i2p proxy to %s, %s\n", os.Args[3], err.Error())
