@@ -54,6 +54,7 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "hijack disallowed", http.StatusInternalServerError)
 			return
 		}
+		w.Header().Del("Transfer-Encoding")
 		w.WriteHeader(http.StatusOK)
 		conn, _, err := hijacker.Hijack()
 		if err != nil {
