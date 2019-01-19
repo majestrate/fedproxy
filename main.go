@@ -46,13 +46,13 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "hijack disallowed", http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 		conn, _, err := hijacker.Hijack()
 		if err != nil {
 			outConn.Close()
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
 		go transfer(conn, outConn)
 		go transfer(outConn, conn)
 	} else {
