@@ -3,8 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/net/context"
 	"golang.org/x/net/proxy"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -33,7 +33,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	return net.Dial("tcp", addr)
 }
 
-func (h *httpProxyHandler) ServeHTTP(w http.ResposneWriter, r *http.Request) {
+func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodConnect {
 		outConn, err := h.dialOut(r.Host)
 		if err != nil {
@@ -71,12 +71,12 @@ func main() {
 	if usehttp {
 		serv := &http.Server{
 			Addr: args[1],
-			Handler: &proxyHandler{
+			Handler: &httpProxyHandler{
 				upstream: upstream,
 			},
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
-		http.ListenAndServe(proxyHandler, args[1])
+		serv.ListenAndServe()
 	} else {
 		serv, err := socks5.New(&socks5.Config{
 			Dial: func(addr string) (net.Conn, error) {
