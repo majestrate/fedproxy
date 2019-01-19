@@ -56,28 +56,27 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResposneWriter, r *http.Request) {
 }
 
 func main() {
-	usehttp := os.Args[0] == "http-fedproxy"
 	args := os.Args[1:]
-
+	usehttp := args[0] == "http"
 	if len(args) < 2 {
-		fmt.Printf("usage: %s bindaddr upstreamaddr\n", os.Args[0])
+		fmt.Printf("usage: %s proto bindaddr onionsocksaddr\n", os.Args[0])
 		return
 	}
 
-	upstream, err := proxy.SOCKS5("tcp", os.Args[2], nil, nil)
+	upstream, err := proxy.SOCKS5("tcp", args[2], nil, nil)
 	if err != nil {
-		fmt.Printf("failed to create upstream proxy to %s, %s", os.Args[2], err.Error())
+		fmt.Printf("failed to create upstream proxy to %s, %s", args[2], err.Error())
 		return
 	}
 	if usehttp {
 		serv := &http.Server{
-			Addr: os.Args[1],
+			Addr: args[1],
 			Handler: &proxyHandler{
 				upstream: upstream,
 			},
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
-		http.ListenAndServe(proxyHandler, os.Args[1])
+		http.ListenAndServe(proxyHandler, args[1])
 	} else {
 		serv, err := socks5.New(&socks5.Config{
 			Dial: func(addr string) (net.Conn, error) {
@@ -97,9 +96,9 @@ func main() {
 			return
 		}
 
-		l, err := net.Listen("tcp", os.Args[1])
+		l, err := net.Listen("tcp", args[1])
 		if err != nil {
-			fmt.Printf("failed to listen on %s, %s", os.Args[1], err.Error())
+			fmt.Printf("failed to listen on %s, %s", args[1], err.Error())
 			return
 
 			serv.Serve(l)

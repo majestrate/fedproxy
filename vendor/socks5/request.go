@@ -79,43 +79,37 @@ func (req *Request) ConnectAddress() string {
 	return req.DestAddr.Address()
 }
 
-type conn interface {
+type socksConn interface {
 	io.WriteCloser
 	RemoteAddr() net.Addr
-		CloseWrite() error
 }
 
-// NewRequest creates a new Request from the tcp connection
-func NewRequest(bufConn io.Reader) (*Request, error) {
+// readRequest creates a new Request from the tcp connection
+func readRequest(bufConn io.Reader, req *Request)  error {
 	// Read the version byte
 	header := []byte{0, 0, 0}
 	if _, err := io.ReadAtLeast(bufConn, header, 3); err != nil {
-		return nil, fmt.Errorf("Failed to get command version: %v", err)
+		return fmt.Errorf("Failed to get command version: %v", err)
 	}
 
 	// Ensure we are compatible
 	if header[0] != socks5Version {
-		return nil, fmt.Errorf("Unsupported command version: %v", header[0])
+		return fmt.Errorf("Unsupported command version: %v", header[0])
 	}
 
 	// Read in the destination address
-	dest, err := readAddrSpec(bufConn)
+	err := readAddrSpec(bufConn, &req.DestAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	request := &Request{
-		Version:  socks5Version,
-		Command:  header[1],
-		DestAddr: dest,
-		bufConn:  bufConn,
-	}
-
-	return request, nil
+	req.Version = socks5Version
+	req.Command = header[1]
+	req.bufConn = bufConn
+	return nil
 }
 
 // handleRequest is used for request processing after authentication
-func (s *Server) handleRequest(req *Request, conn conn) error {
+func (s *Server) handleRequest(req *Request, conn socksConn) error {
 	ctx := context.Background()
 
 	// Switch on the command
@@ -124,8 +118,6 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 		return s.handleConnect(ctx, conn, req)
 	case BindCommand:
 		return s.handleBind(ctx, conn, req)
-	case AssociateCommand:
-		return s.handleAssociate(ctx, conn, req)
 	default:
 		if err := sendReply(conn, commandNotSupported, nil); err != nil {
 			return fmt.Errorf("Failed to send reply: %v", err)
@@ -135,7 +127,7 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 }
 
 // handleConnect is used to handle a connect command
-func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) error {
+func (s *Server) handleConnect(ctx context.Context, conn socksConn, req *Request) error {
 	// Check if this is allowed
 	if ctx_, ok := s.config.Rules.Allow(ctx, req); !ok {
 		if err := sendReply(conn, ruleFailure, nil); err != nil {
@@ -149,11 +141,11 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 	// Attempt to connect
 	dial := s.config.Dial
 	if dial == nil {
-		dial = func(ctx context.Context, net_, addr string) (net.Conn, error) {
-			return net.Dial(net_, addr)
+		dial = func(addr string) (net.Conn, error) {
+			return net.Dial("tcp", addr)
 		}
 	}
-	target, err := dial(ctx, "tcp", req.Address())
+	target, err := dial(req.ConnectAddress())
 	if err != nil {
 		msg := err.Error()
 		resp := hostUnreachable
@@ -193,7 +185,7 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 }
 
 // handleBind is used to handle a connect command
-func (s *Server) handleBind(ctx context.Context, conn conn, req *Request) error {
+func (s *Server) handleBind(ctx context.Context, conn socksConn, req *Request) error {
 	// Check if this is allowed
 	if ctx_, ok := s.config.Rules.Allow(ctx, req); !ok {
 		if err := sendReply(conn, ruleFailure, nil); err != nil {
@@ -211,34 +203,14 @@ func (s *Server) handleBind(ctx context.Context, conn conn, req *Request) error 
 	return nil
 }
 
-// handleAssociate is used to handle a connect command
-func (s *Server) handleAssociate(ctx context.Context, conn conn, req *Request) error {
-	// Check if this is allowed
-	if ctx_, ok := s.config.Rules.Allow(ctx, req); !ok {
-		if err := sendReply(conn, ruleFailure, nil); err != nil {
-			return fmt.Errorf("Failed to send reply: %v", err)
-		}
-		return fmt.Errorf("Associate to %v blocked by rules", req.DestAddr)
-	} else {
-		ctx = ctx_
-	}
-
-	// TODO: Support associate
-	if err := sendReply(conn, commandNotSupported, nil); err != nil {
-		return fmt.Errorf("Failed to send reply: %v", err)
-	}
-	return nil
-}
-
 // readAddrSpec is used to read AddrSpec.
 // Expects an address type byte, follwed by the address and port
-func readAddrSpec(r io.Reader) (*AddrSpec, error) {
-	d := &AddrSpec{}
+func readAddrSpec(r io.Reader, d *AddrSpec) error {
 
 	// Get the address type
 	addrType := []byte{0}
 	if _, err := r.Read(addrType); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Handle on a per type basis
@@ -246,40 +218,40 @@ func readAddrSpec(r io.Reader) (*AddrSpec, error) {
 	case ipv4Address:
 		addr := make([]byte, 4)
 		if _, err := io.ReadAtLeast(r, addr, len(addr)); err != nil {
-			return nil, err
+			return err
 		}
 		d.IP = net.IP(addr)
 
 	case ipv6Address:
 		addr := make([]byte, 16)
 		if _, err := io.ReadAtLeast(r, addr, len(addr)); err != nil {
-			return nil, err
+			return err
 		}
 		d.IP = net.IP(addr)
 
 	case fqdnAddress:
 		if _, err := r.Read(addrType); err != nil {
-			return nil, err
+			return err
 		}
 		addrLen := int(addrType[0])
 		fqdn := make([]byte, addrLen)
 		if _, err := io.ReadAtLeast(r, fqdn, addrLen); err != nil {
-			return nil, err
+			return err
 		}
 		d.FQDN = string(fqdn)
 
 	default:
-		return nil, unrecognizedAddrType
+		return unrecognizedAddrType
 	}
 
 	// Read the port
 	port := []byte{0, 0}
 	if _, err := io.ReadAtLeast(r, port, 2); err != nil {
-		return nil, err
+		return err
 	}
 	d.Port = (int(port[0]) << 8) | int(port[1])
 
-	return d, nil
+	return nil
 }
 
 // sendReply is used to send a reply message
@@ -331,9 +303,9 @@ func sendReply(w io.Writer, resp uint8, addr *AddrSpec) error {
 
 // proxy is used to suffle data from src to destination, and sends errors
 // down a dedicated channel
-func proxy(dst conn, src io.Reader, errCh chan error) {
+func proxy(dst socksConn, src io.Reader, errCh chan error) {
 	var buf [1024 * 4]byte
 	_, err := io.CopyBuffer(dst, src, buf[:])
-	dst.CloseWrite()
+	dst.Close()
 	errCh <- err
 }

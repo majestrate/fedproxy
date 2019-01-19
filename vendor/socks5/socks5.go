@@ -6,8 +6,6 @@ import (
 	"log"
 	"net"
 	"os"
-
-	"golang.org/x/net/context"
 )
 
 const (
@@ -129,8 +127,8 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
-
-	request, err := NewRequest(bufConn)
+	var req Request
+	err = readRequest(bufConn, &req)
 	if err != nil {
 		if err == unrecognizedAddrType {
 			if err := sendReply(conn, addrTypeNotSupported, nil); err != nil {
@@ -139,13 +137,13 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		}
 		return fmt.Errorf("Failed to read destination address: %v", err)
 	}
-	request.AuthContext = authContext
+	req.AuthContext = authContext
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
+		req.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
 
 	// Process the client request
-	if err := s.handleRequest(request, conn); err != nil {
+	if err := s.handleRequest(&req, conn); err != nil {
 		err = fmt.Errorf("Failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
