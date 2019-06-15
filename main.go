@@ -123,8 +123,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("failed to listen on %s, %s", args[1], err.Error())
 			return
-
-			serv.Serve(l)
 		}
+		serv.Serve(l)
 	}
 }
