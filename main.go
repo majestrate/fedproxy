@@ -3,17 +3,18 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/majestrate/fedproxy/internal/socks5"
 	"golang.org/x/net/proxy"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"socks5"
 	"strings"
 )
 
 type httpProxyHandler struct {
-	upstream proxy.Dialer
+	onion proxy.Dialer
+	i2p   proxy.Dialer
 }
 
 func transfer(dst io.WriteCloser, src io.ReadCloser) {
@@ -35,10 +36,13 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasSuffix(host, ".onion") {
-		return h.upstream.Dial("tcp", addr)
+	if strings.HasSuffix(host, ".loki") {
+		return net.Dial("tcp", addr)
 	}
-	return net.Dial("tcp", addr)
+	if strings.HasSuffix(host, ".i2p") {
+		return h.i2p.Dial("tcp", addr)
+	}
+	return h.onion.Dial("tcp", addr)
 }
 
 func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,37 +84,47 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	args := os.Args[1:]
-	usehttp := args[0] == "http"
-	if len(args) < 2 {
-		fmt.Printf("usage: %s proto bindaddr onionsocksaddr\n", os.Args[0])
+	if len(args) < 4 {
+		fmt.Printf("usage: %s proto bindaddr onionsocksaddr i2psocksaddr\n", os.Args[0])
 		return
 	}
-
-	upstream, err := proxy.SOCKS5("tcp", args[2], nil, nil)
+	usehttp := args[0] == "http"
+	onionsock, err := proxy.SOCKS5("tcp", args[2], nil, nil)
 	if err != nil {
 		fmt.Printf("failed to create upstream proxy to %s, %s", args[2], err.Error())
 		return
 	}
+	i2psock, err := proxy.SOCKS5("tcp", args[3], nil, nil)
 	if usehttp {
 		serv := &http.Server{
 			Addr: args[1],
 			Handler: &httpProxyHandler{
-				upstream: upstream,
+				onion: onionsock,
+				i2p:   i2psock,
 			},
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
-		serv.ListenAndServe()
+		fmt.Printf("setting up http proxy at %s\n", serv.Addr)
+		err = serv.ListenAndServe()
+		if err != nil {
+			fmt.Printf("%s\n", err.Error())
+		}
 	} else {
 		serv, err := socks5.New(&socks5.Config{
 			Dial: func(addr string) (net.Conn, error) {
 				host, _, err := net.SplitHostPort(addr)
+				host = strings.TrimSuffix(host, ".")
+				fmt.Printf("%s\n", host)
 				if err != nil {
 					return nil, err
 				}
-				if strings.HasSuffix(host, ".onion") {
-					return upstream.Dial("tcp", addr)
+				if strings.HasSuffix(host, ".loki") {
+					return net.Dial("tcp", addr)
 				}
-				return net.Dial("tcp", addr)
+				if strings.HasSuffix(host, ".i2p") {
+					return i2psock.Dial("tcp", addr)
+				}
+				return onionsock.Dial("tcp", addr)
 			},
 		})
 

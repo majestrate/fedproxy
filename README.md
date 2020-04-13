@@ -1,6 +1,6 @@
 # fedproxy
 
-socks proxy that reroutes onion and i2p tlds to their own socks proxies while passing through all other tlds 
+routes `.onion` and clearnet domains over tor, `.i2p` domains over i2p, and `.loki` domains over lokinet if it's configured.
 
 building:
 
@@ -9,10 +9,6 @@ building:
     
 usage: 
 
-(just onion)
+     $ fedproxy socks 127.0.0.1:2000 127.0.0.1:9050 127.0.0.1:4447
 
-     $ fedproxy 127.0.0.1:2000 127.0.0.1:9050 
-          
-(onion + i2pd)
-
-     $ fedproxy 127.0.0.1:2000 127.0.0.1:9050 127.0.0.1:4447
+then use socks proxy at `127.0.0.1:2000`
